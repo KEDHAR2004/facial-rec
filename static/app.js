@@ -46,6 +46,15 @@ function switchTab(live) {
 
 /* ---------------- camera ---------------- */
 btnStart.onclick = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    setStatus(
+      "Camera API unavailable. Browsers only allow camera access on " +
+        "localhost or over HTTPS — start the server with `python app.py --ssl` " +
+        "and open the https:// URL.",
+      true
+    );
+    return;
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 960 }, height: { ideal: 540 } },

@@ -41,6 +41,11 @@ python cli.py analyze photo.jpg -o annotated.jpg
 
 Start `python app.py` and open <http://localhost:5000>:
 
+> **Opening the app from another device?** Browsers only allow camera access
+> on `localhost` or over HTTPS. Start the server with `python app.py --ssl`
+> and open the `https://` URL (accept the self-signed certificate warning)
+> so the live camera works across the network.
+
 - **Live camera** tab — click *Start camera*; every face gets a live overlay
   showing its identity and dominant expression. Type a name (or leave blank
   for auto `Person N`) and click *Enroll this face* to register the most

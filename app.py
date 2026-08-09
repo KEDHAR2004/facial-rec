@@ -104,4 +104,28 @@ def settings():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="FaceSense web app.")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=5000)
+    parser.add_argument(
+        "--ssl",
+        action="store_true",
+        help="Serve over HTTPS (self-signed). Required for live-camera access "
+        "when the app is opened from another device: browsers only allow the "
+        "camera on localhost or secure origins.",
+    )
+    args = parser.parse_args()
+
+    ssl_context = None
+    if args.ssl:
+        try:
+            import OpenSSL  # noqa: F401  (Flask's adhoc certs need pyopenssl)
+        except ImportError:
+            raise SystemExit(
+                "--ssl requires pyopenssl. Install it with: pip install pyopenssl"
+            )
+        ssl_context = "adhoc"
+
+    app.run(host=args.host, port=args.port, debug=False, ssl_context=ssl_context)

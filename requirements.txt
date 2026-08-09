@@ -2,3 +2,4 @@ opencv-python>=4.10
 numpy>=1.26
 flask>=3.0
 requests>=2.31
+pyopenssl>=24.0
