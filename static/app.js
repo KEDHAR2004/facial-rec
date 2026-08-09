@@ -116,12 +116,18 @@ async function analyzeFrame() {
   }
 }
 
+/* The video preview is mirrored (selfie style), so overlay X coordinates
+   must be flipped to stay aligned with what the user sees. */
+const MIRROR = true;
+
 function drawOverlay(faces) {
   ctx.clearRect(0, 0, overlay.width, overlay.height);
   ctx.lineWidth = 2;
   ctx.font = "15px 'Segoe UI', sans-serif";
+  const W = overlay.width;
   for (const f of faces) {
-    const [x, y, w, h] = f.box;
+    let [x, y, w, h] = f.box;
+    if (MIRROR) x = W - x - w;
     const known = f.name !== "Unknown";
     const color = known ? "#3ddc84" : "#ff5d73";
     ctx.strokeStyle = color;
@@ -139,7 +145,7 @@ function drawOverlay(faces) {
     ctx.fillStyle = "#ffc800";
     for (const [px, py] of f.landmarks) {
       ctx.beginPath();
-      ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+      ctx.arc(MIRROR ? W - px : px, py, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -156,7 +162,6 @@ function renderFaces(faces) {
       const known = f.name !== "Unknown";
       const bars = Object.entries(f.expression_scores)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 4)
         .map(
           ([label, p]) => `
             <div class="bar-row">

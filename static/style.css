@@ -59,9 +59,17 @@ video, #overlay {
   width: 100%;
   border-radius: 10px;
   display: block;
-  background: #000;
 }
-#overlay { position: absolute; inset: 0; pointer-events: none; }
+video { background: #000; min-height: 220px; }
+/* Selfie-style mirrored preview; overlay coordinates are mirrored in JS. */
+video.mirrored { transform: scaleX(-1); }
+#overlay {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  pointer-events: none;
+  background: transparent;
+}
 
 .controls, .upload-actions {
   display: flex;
