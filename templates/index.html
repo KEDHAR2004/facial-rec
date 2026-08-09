@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>facial-rec</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>facial-rec</h1>
+      <p class="subtitle">Live camera &amp; image face detection powered by OpenCV</p>
+      <nav class="topnav"><a href="{{ url_for('gallery') }}">View capture gallery &rarr;</a></nav>
+    </header>
+
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="live" role="tab">Live camera</button>
+        <button class="tab" data-tab="upload" role="tab">Upload image</button>
+        <button class="tab" data-tab="sample" role="tab">Sample</button>
+      </div>
+
+      <!-- Live camera -->
+      <section class="panel active" id="panel-live">
+        <div class="video-stage">
+          <video id="video" playsinline autoplay muted></video>
+          <canvas id="overlay"></canvas>
+          <span class="live-badge" id="liveBadge">camera off</span>
+        </div>
+        <div class="controls">
+          <button id="startBtn" class="btn-primary">Start camera</button>
+          <button id="stopBtn" class="btn-secondary" disabled>Stop</button>
+          <button id="captureBtn" class="btn-accent" disabled>Capture &amp; save</button>
+        </div>
+        <p class="hint" id="liveHint">Click “Start camera” and allow access. Detected faces are boxed live.</p>
+        <p class="capture-note" id="captureNote"></p>
+      </section>
+
+      <!-- Upload -->
+      <section class="panel" id="panel-upload">
+        <form method="post" enctype="multipart/form-data">
+          <div class="controls">
+            <input type="file" name="image" accept="image/*" />
+            <button type="submit" class="btn-primary">Detect faces</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Sample -->
+      <section class="panel" id="panel-sample">
+        <p class="hint">Run detection on the bundled offline sample photo.</p>
+        <form method="post">
+          <input type="hidden" name="use_sample" value="1" />
+          <button type="submit" class="btn-secondary">Try the bundled sample image</button>
+        </form>
+      </section>
+
+      {% if error %}
+        <p class="error">{{ error }}</p>
+      {% endif %}
+
+      {% if result %}
+        <div class="result">
+          <span class="badge">{{ result.count }} face(s) detected</span>
+          <img src="data:image/png;base64,{{ result.image_b64 }}" alt="annotated result" />
+        </div>
+      {% endif %}
+    </div>
+
+    <footer>
+      CLI: <code>python -m facial_rec detect &lt;image&gt; -o out.jpg</code>
+    </footer>
+  </div>
+
+  <canvas id="scratch" hidden></canvas>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
