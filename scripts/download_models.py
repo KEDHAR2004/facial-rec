@@ -1,9 +1,10 @@
 """Download the pretrained ONNX models used by the face engine.
 
 Models:
-  - YuNet   : face detection      (OpenCV Zoo)
-  - SFace   : face recognition    (OpenCV Zoo)
-  - FER+    : expression analysis (ONNX Model Zoo)
+  - YuNet     : face detection      (OpenCV Zoo)
+  - SFace     : face recognition    (OpenCV Zoo)
+  - FER+      : expression analysis (ONNX Model Zoo)
+  - HSEmotion : expression analysis (EfficientNet-B0 trained on AffectNet)
 """
 
 from __future__ import annotations
@@ -27,6 +28,10 @@ MODELS = {
     "emotion-ferplus-8.onnx": (
         "https://github.com/onnx/models/raw/main/validated/vision/"
         "body_analysis/emotion_ferplus/model/emotion-ferplus-8.onnx"
+    ),
+    "enet_b0_8_best_vgaf.onnx": (
+        "https://github.com/av-savchenko/face-emotion-recognition/raw/main/"
+        "models/affectnet_emotions/onnx/enet_b0_8_best_vgaf.onnx"
     ),
 }
 

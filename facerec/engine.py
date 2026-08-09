@@ -6,9 +6,11 @@ Pipeline for every frame/image:
   3. Match the embedding against the enrolled-person database
      (cosine similarity). Unknown faces can be auto-enrolled as
      "Person 1", "Person 2", ...
-  4. Classify the facial expression with the FER+ model
-     (8 classes: neutral, happiness, surprise, sadness, anger,
-     disgust, fear, contempt).
+  4. Classify the facial expression across 8 classes (neutral,
+     happiness, surprise, sadness, anger, disgust, fear, contempt)
+     using an ensemble of two models: HSEmotion (EfficientNet-B0
+     trained on AffectNet) and FER+. The ensemble is markedly more
+     sensitive to non-neutral expressions than either model alone.
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ MODELS_DIR = Path(__file__).resolve().parent.parent / "models"
 DETECTOR_MODEL = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
 RECOGNIZER_MODEL = MODELS_DIR / "face_recognition_sface_2021dec.onnx"
 EMOTION_MODEL = MODELS_DIR / "emotion-ferplus-8.onnx"
+EMOTION_MODEL_2 = MODELS_DIR / "enet_b0_8_best_vgaf.onnx"
 
 EMOTIONS = (
     "neutral",
@@ -36,6 +39,21 @@ EMOTIONS = (
     "fear",
     "contempt",
 )
+# Output order of the HSEmotion (AffectNet) model.
+_ENET_LABELS = (
+    "anger",
+    "contempt",
+    "disgust",
+    "fear",
+    "happiness",
+    "neutral",
+    "sadness",
+    "surprise",
+)
+_IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+_IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+# Ensemble weight for HSEmotion vs FER+ (tuned on a labeled test set).
+_ENET_WEIGHT = 0.6
 
 # Recommended cosine-similarity threshold for SFace (OpenCV Zoo).
 COSINE_THRESHOLD = 0.363
@@ -76,7 +94,12 @@ class FaceEngine:
         match_threshold: float = COSINE_THRESHOLD,
         auto_enroll: bool = False,
     ) -> None:
-        for model in (DETECTOR_MODEL, RECOGNIZER_MODEL, EMOTION_MODEL):
+        for model in (
+            DETECTOR_MODEL,
+            RECOGNIZER_MODEL,
+            EMOTION_MODEL,
+            EMOTION_MODEL_2,
+        ):
             if not model.exists():
                 raise FileNotFoundError(
                     f"Missing model {model.name}. "
@@ -88,6 +111,7 @@ class FaceEngine:
         )
         self._recognizer = cv2.FaceRecognizerSF.create(str(RECOGNIZER_MODEL), "")
         self._emotion_net = cv2.dnn.readNetFromONNX(str(EMOTION_MODEL))
+        self._emotion_net2 = cv2.dnn.readNetFromONNX(str(EMOTION_MODEL_2))
 
         self.match_threshold = match_threshold
         self.auto_enroll = auto_enroll
@@ -174,27 +198,54 @@ class FaceEngine:
         aligned = self._recognizer.alignCrop(image, face_row)
         return self._recognizer.feature(aligned)
 
+    @staticmethod
+    def _crop(
+        image: np.ndarray, box: tuple[int, int, int, int], pad_frac: float
+    ) -> np.ndarray:
+        x, y, w, h = box
+        pad = int(pad_frac * max(w, h))
+        x0, y0 = max(0, x - pad), max(0, y - pad)
+        x1, y1 = min(image.shape[1], x + w + pad), min(image.shape[0], y + h + pad)
+        return image[y0:y1, x0:x1]
+
+    @staticmethod
+    def _softmax(logits: np.ndarray) -> np.ndarray:
+        exp = np.exp(logits - logits.max())
+        return exp / exp.sum()
+
     def _classify_expression(
         self, image: np.ndarray, box: tuple[int, int, int, int]
     ) -> tuple[str, dict[str, float]]:
-        x, y, w, h = box
-        # Expand the crop slightly; FER+ was trained on loose face crops.
-        pad = int(0.1 * max(w, h))
-        x0, y0 = max(0, x - pad), max(0, y - pad)
-        x1, y1 = min(image.shape[1], x + w + pad), min(image.shape[0], y + h + pad)
-        crop = image[y0:y1, x0:x1]
+        """Ensemble of HSEmotion (AffectNet) and FER+ probabilities."""
+        crop = self._crop(image, box, 0.05)
         if crop.size == 0:
             return "unknown", {}
 
-        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        gray = cv2.resize(gray, (64, 64), interpolation=cv2.INTER_AREA)
-        blob = gray.astype(np.float32).reshape(1, 1, 64, 64)
-        self._emotion_net.setInput(blob)
-        logits = self._emotion_net.forward().flatten()
+        # HSEmotion: 224x224 RGB, ImageNet normalization.
+        rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+        rgb = cv2.resize(rgb, (224, 224), interpolation=cv2.INTER_AREA)
+        blob = (rgb.astype(np.float32) / 255.0 - _IMAGENET_MEAN) / _IMAGENET_STD
+        self._emotion_net2.setInput(blob.transpose(2, 0, 1)[None])
+        enet_probs = dict(
+            zip(_ENET_LABELS, self._softmax(self._emotion_net2.forward().flatten()))
+        )
 
-        exp = np.exp(logits - logits.max())
-        probs = exp / exp.sum()
-        scores = {label: float(p) for label, p in zip(EMOTIONS, probs)}
+        # FER+: 64x64 grayscale on a slightly looser crop.
+        fer_crop = self._crop(image, box, 0.1)
+        gray = cv2.cvtColor(fer_crop, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, (64, 64), interpolation=cv2.INTER_AREA)
+        self._emotion_net.setInput(gray.astype(np.float32).reshape(1, 1, 64, 64))
+        fer_probs = dict(
+            zip(EMOTIONS, self._softmax(self._emotion_net.forward().flatten()))
+        )
+
+        scores = {
+            label: float(
+                _ENET_WEIGHT * enet_probs[label]
+                + (1.0 - _ENET_WEIGHT) * fer_probs[label]
+            )
+            for label in EMOTIONS
+        }
         top = max(scores, key=scores.get)
         return top, scores
 

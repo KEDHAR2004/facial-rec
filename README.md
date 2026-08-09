@@ -13,9 +13,15 @@ FaceSense detects faces, recognizes **who** each person is (with automatic
   128-d face embeddings with cosine-similarity matching. People can be enrolled
   with a custom name or auto-labeled `Person 1`, `Person 2`, … An optional
   *auto-enroll* mode labels every new unknown face automatically.
-- **Expression recognition** — [FER+](https://github.com/onnx/models/tree/main/validated/vision/body_analysis/emotion_ferplus)
-  model classifying **8 expressions**: neutral, happiness, surprise, sadness,
-  anger, disgust, fear, contempt — with per-class confidence scores.
+- **Expression recognition** — an **ensemble of two models** classifying
+  **8 expressions**: neutral, happiness, surprise, sadness, anger, disgust,
+  fear, contempt — with per-class confidence scores.
+  [HSEmotion](https://github.com/av-savchenko/face-emotion-recognition)
+  (EfficientNet-B0 trained on AffectNet) provides high sensitivity to
+  non-neutral expressions, and
+  [FER+](https://github.com/onnx/models/tree/main/validated/vision/body_analysis/emotion_ferplus)
+  stabilizes neutral/happiness; on a labeled test set the ensemble scored
+  significantly higher than either model alone.
 - **Web app** — live browser-webcam analysis with real-time overlays, image
   upload, one-click enrollment, and a person-database manager.
 - **CLI** — batch analysis of images, video files, or a webcam stream, with
@@ -27,7 +33,7 @@ FaceSense detects faces, recognizes **who** each person is (with automatic
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Download the pretrained models (~75 MB total, one time)
+# 2. Download the pretrained models (~90 MB total, one time)
 python scripts/download_models.py
 
 # 3a. Run the web app, then open http://localhost:5000
@@ -89,8 +95,9 @@ Useful flags:
    128-d vector by SFace; the vector is compared (cosine similarity) against
    all enrolled samples, and the best match above the threshold wins,
    otherwise the face is `Unknown` (or auto-enrolled as the next `Person N`).
-3. **Classify expression** — the face crop is converted to a 64×64 grayscale
-   image and scored by FER+ across 8 expression classes (softmax).
+3. **Classify expression** — the face crop is scored by two models —
+   HSEmotion (224×224 RGB) and FER+ (64×64 grayscale) — and their softmax
+   probabilities are blended (0.6 / 0.4) into the final 8-class result.
 
 The person database is a simple JSON file of embeddings (`data/faces_db.json`)
 — no face images are stored, and everything runs offline.
@@ -122,6 +129,7 @@ official sources by `scripts/download_models.py`:
 | YuNet | Face detection | [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | MIT |
 | SFace | Face recognition | [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) | Apache-2.0 |
 | FER+ | Expression recognition | [ONNX Model Zoo](https://github.com/onnx/models/tree/main/validated/vision/body_analysis/emotion_ferplus) | MIT |
+| HSEmotion (EfficientNet-B0) | Expression recognition | [av-savchenko/face-emotion-recognition](https://github.com/av-savchenko/face-emotion-recognition) | Apache-2.0 |
 
 ## Responsible use
 
