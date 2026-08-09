@@ -26,6 +26,7 @@ const resultImage = document.getElementById("result-image");
 let stream = null;
 let loopTimer = null;
 let busy = false;
+let failStreak = 0;
 
 const grabCanvas = document.createElement("canvas");
 
@@ -103,14 +104,23 @@ async function analyzeFrame() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: grabFrame() }),
     });
+    if (!res.ok) throw new Error(`server responded ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    failStreak = 0;
     drawOverlay(data.faces);
     renderFaces(data.faces);
     renderPersons(data.persons);
     setStatus(`${data.faces.length} face(s) detected`);
   } catch (e) {
-    setStatus("Analysis error: " + e.message, true);
+    // Hosted servers can briefly return errors while waking/restarting;
+    // keep retrying quietly and only surface persistent failures.
+    failStreak += 1;
+    if (failStreak >= 5) {
+      setStatus("Analysis error: " + e.message, true);
+    } else if (failStreak >= 2) {
+      setStatus("Reconnecting…");
+    }
   } finally {
     busy = false;
   }
