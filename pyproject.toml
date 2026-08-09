@@ -1,0 +1,10 @@
+[project]
+name = "facial-rec"
+version = "0.1.0"
+description = "A small offline face detection toolkit built on OpenCV, with a CLI and Flask web UI."
+requires-python = ">=3.10"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
