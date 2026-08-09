@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>facial-rec · gallery</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Capture gallery</h1>
+      <p class="subtitle">Saved detections from the live camera</p>
+      <nav class="topnav"><a href="{{ url_for('index') }}">&larr; Back to detector</a></nav>
+    </header>
+
+    <div class="card">
+      {% if captures %}
+        <div class="gallery-grid">
+          {% for c in captures %}
+            <figure class="gallery-item">
+              <a href="{{ c.url }}" target="_blank"><img src="{{ c.url }}" alt="{{ c.name }}" /></a>
+              <figcaption>{{ c.name }}</figcaption>
+            </figure>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="hint">No captures yet. Use “Capture &amp; save” on the live camera view.</p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
