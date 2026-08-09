@@ -88,6 +88,25 @@ Useful flags:
 - `--threshold X` — adjust the match strictness (default `0.363` cosine
   similarity; raise it to reduce false matches, lower it to match more easily).
 
+## Hosting a live demo (working link)
+
+The repo includes a `Dockerfile`, so you can host a public demo with a real
+URL in a few clicks. Visitors' webcams work because hosting platforms serve
+over HTTPS, and all analysis still happens on the server — no cloud AI APIs.
+
+**Render (simplest):**
+
+1. Sign up at [render.com](https://render.com) with your GitHub account.
+2. Click **New → Web Service**, pick this repository.
+3. Render auto-detects the `Dockerfile` — choose the **Free** instance type
+   and click **Deploy**. You'll get a link like
+   `https://facesense.onrender.com`.
+
+Notes for a public demo: the free tier sleeps when idle (first visit takes
+~1 minute to wake), and the enrolled-person database is shared by all
+visitors and resets on redeploy — fine for a portfolio demo, but say so in
+your post.
+
 ## How it works
 
 1. **Detect** — YuNet finds every face and its 5 landmarks in the frame.
