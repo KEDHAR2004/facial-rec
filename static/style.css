@@ -1,0 +1,146 @@
+:root {
+  --bg: #0f1220;
+  --panel: #181c2f;
+  --panel-2: #1f2440;
+  --text: #e8eaf6;
+  --muted: #9aa0c3;
+  --accent: #5b8cff;
+  --green: #3ddc84;
+  --red: #ff5d73;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: radial-gradient(1200px 600px at 20% -10%, #1c2350 0%, var(--bg) 55%);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+header {
+  padding: 28px 40px 10px;
+}
+header h1 { margin: 0; font-size: 28px; letter-spacing: 0.5px; }
+header h1 span { color: var(--accent); }
+header p { margin: 4px 0 0; color: var(--muted); }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 20px;
+  padding: 20px 40px 40px;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid #262c4d;
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.tab {
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid #2c3357;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.tab.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+
+.video-wrap { position: relative; width: 100%; }
+video, #overlay {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+video { background: #000; min-height: 220px; }
+/* Selfie-style mirrored preview; overlay coordinates are mirrored in JS. */
+video.mirrored { transform: scaleX(-1); }
+#overlay {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  pointer-events: none;
+  background: transparent;
+}
+
+.controls, .upload-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+button {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid #2c3357;
+  border-radius: 8px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: filter 0.15s ease;
+}
+button:hover:not(:disabled) { filter: brightness(1.2); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); }
+button.danger { background: transparent; border-color: var(--red); color: var(--red); margin-top: 10px; }
+
+input[type="text"] {
+  background: var(--panel-2);
+  border: 1px solid #2c3357;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 14px;
+  min-width: 190px;
+}
+input[type="file"] { color: var(--muted); }
+
+.toggle { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
+
+.status { color: var(--muted); font-size: 13px; min-height: 18px; margin-bottom: 0; }
+
+#result-image { max-width: 100%; margin-top: 14px; border-radius: 10px; }
+
+.side-panel h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 6px 0 10px; }
+.side-panel h2 + * { margin-bottom: 18px; }
+
+.face-card {
+  background: var(--panel-2);
+  border: 1px solid #2c3357;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+.face-card .who { font-weight: 600; }
+.face-card .who.known { color: var(--green); }
+.face-card .who.unknown { color: var(--red); }
+.face-card .expr { color: var(--accent); }
+.bar-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 3px; }
+.bar-row .label { width: 74px; }
+.bar { flex: 1; height: 6px; background: #12152a; border-radius: 4px; overflow: hidden; }
+.bar > div { height: 100%; background: var(--accent); }
+
+#persons { list-style: none; padding: 0; margin: 0; }
+#persons li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+#persons li button { padding: 3px 9px; font-size: 12px; border-color: var(--red); color: var(--red); background: transparent; }
+.empty { color: var(--muted); font-size: 13px; }

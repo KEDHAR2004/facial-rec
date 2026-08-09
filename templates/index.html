@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FaceSense — Recognition &amp; Expression Analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header>
+    <h1>Face<span>Sense</span></h1>
+    <p>Real-time face recognition &amp; expression analysis</p>
+  </header>
+
+  <main>
+    <section class="panel video-panel">
+      <div class="tabs">
+        <button id="tab-live" class="tab active">Live camera</button>
+        <button id="tab-upload" class="tab">Upload image</button>
+      </div>
+
+      <div id="live-view">
+        <div class="video-wrap">
+          <video id="video" class="mirrored" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="controls">
+          <button id="btn-start" class="primary">Start camera</button>
+          <button id="btn-stop" disabled>Stop</button>
+          <input id="enroll-name" type="text" placeholder="Name (blank = Person N)" />
+          <button id="btn-enroll" disabled>Enroll this face</button>
+          <label class="toggle">
+            <input type="checkbox" id="auto-enroll" />
+            Auto-enroll unknown faces
+          </label>
+        </div>
+      </div>
+
+      <div id="upload-view" hidden>
+        <input type="file" id="file-input" accept="image/*" />
+        <div class="upload-actions">
+          <button id="btn-analyze-file" class="primary" disabled>Analyze</button>
+          <input id="enroll-name-file" type="text" placeholder="Name (blank = Person N)" />
+          <button id="btn-enroll-file" disabled>Enroll from image</button>
+        </div>
+        <img id="result-image" alt="" hidden />
+      </div>
+
+      <p id="status" class="status"></p>
+    </section>
+
+    <aside class="panel side-panel">
+      <h2>Detected faces</h2>
+      <div id="faces"></div>
+
+      <h2>Enrolled people</h2>
+      <ul id="persons"></ul>
+      <button id="btn-reset" class="danger">Reset database</button>
+    </aside>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
