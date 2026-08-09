@@ -11,6 +11,8 @@ from flask import Flask, jsonify, render_template, request
 from facerec import FaceEngine
 
 app = Flask(__name__)
+# Always revalidate static files so UI updates reach browsers immediately.
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 engine = FaceEngine()
 
 
