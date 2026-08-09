@@ -107,6 +107,22 @@ models/                    # downloaded ONNX models (git-ignored)
 data/                      # person database (git-ignored)
 ```
 
+## License & credits
+
+This project's code is released under the [MIT License](LICENSE) — free to
+use, modify, and share.
+
+It uses three publicly available pretrained models, all under permissive
+open-source licenses that allow free (including commercial) use. The models
+are **not** bundled in this repository — they are downloaded from their
+official sources by `scripts/download_models.py`:
+
+| Model | Purpose | Source | License |
+|---|---|---|---|
+| YuNet | Face detection | [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet) | MIT |
+| SFace | Face recognition | [OpenCV Zoo](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface) | Apache-2.0 |
+| FER+ | Expression recognition | [ONNX Model Zoo](https://github.com/onnx/models/tree/main/validated/vision/body_analysis/emotion_ferplus) | MIT |
+
 ## Responsible use
 
 Facial recognition involves biometric data. Only enroll and analyze people
