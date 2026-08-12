@@ -26,6 +26,18 @@ class SourceConfig:
 
 
 @dataclass
+class PortalConfig:
+    """A company careers page to watch directly (any employer's own portal)."""
+    name: str                     # short id, e.g. "mcdonalds"
+    url: str                      # the search/results page to watch
+    link_pattern: str             # regex; hrefs matching this are job listings
+    company: str = ""             # display name (defaults to capitalized name)
+    poll_seconds: float = 60.0    # full page load per poll — keep >= 30s
+    render_wait_seconds: float = 6.0   # extra wait for JS-rendered lists
+    timeout_seconds: float = 45.0
+
+
+@dataclass
 class ApplyConfig:
     enabled: bool = False           # when False the bot only notifies
     max_per_hour: int = 12
@@ -39,6 +51,7 @@ class Config:
     search: SearchConfig
     sources: dict[str, SourceConfig]
     apply: ApplyConfig
+    portals: list[PortalConfig] = field(default_factory=list)
     db_path: str = "data/jobbot.db"
 
     # secrets (from environment / .env)
@@ -62,10 +75,13 @@ def load_config(path: str | Path) -> Config:
         for name, cfg in (data.get("sources") or {"reed": {}, "adzuna": {}, "amazon_uk": {}}).items()
     }
 
+    portals = [PortalConfig(**p) for p in (data.get("portals") or [])]
+
     cfg = Config(
         search=search,
         sources=sources,
         apply=apply_cfg,
+        portals=portals,
         db_path=data.get("db_path", "data/jobbot.db"),
         reed_api_key=os.getenv("REED_API_KEY", ""),
         adzuna_app_id=os.getenv("ADZUNA_APP_ID", ""),

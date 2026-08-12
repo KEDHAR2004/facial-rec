@@ -12,7 +12,7 @@ from .config import Config, load_config
 from .filters import passes_filters
 from .models import Job
 from .notify import TelegramNotifier
-from .sources import AdzunaSource, AmazonUkSource, ReedSource, Source
+from .sources import AdzunaSource, AmazonUkSource, PortalSource, ReedSource, Source
 from .store import Store
 
 log = logging.getLogger("jobbot")
@@ -41,14 +41,19 @@ class Bot:
                 sources.append(AdzunaSource(self.cfg.adzuna_app_id, self.cfg.adzuna_app_key, self.cfg.search))
             else:
                 log.warning("Adzuna enabled but ADZUNA_APP_ID/ADZUNA_APP_KEY not set — skipping")
+        browser_wanted = []
         amazon_cfg = self.cfg.sources.get("amazon_uk")
         if amazon_cfg and amazon_cfg.enabled:
+            browser_wanted.append(lambda: AmazonUkSource(self.cfg.search, headless=self.cfg.apply.headless))
+        for portal in self.cfg.portals:
+            browser_wanted.append(lambda p=portal: PortalSource(p))
+        if browser_wanted:
             try:
                 import playwright  # noqa: F401
-                sources.append(AmazonUkSource(self.cfg.search, headless=self.cfg.apply.headless))
+                sources.extend(factory() for factory in browser_wanted)
             except ImportError:
-                log.warning("amazon_uk enabled but playwright is not installed "
-                            "(pip install playwright && playwright install chromium) — skipping")
+                log.warning("amazon_uk/portals need playwright "
+                            "(pip install playwright && playwright install chromium) — skipping them")
         return sources
 
     async def start_applier(self) -> None:
@@ -73,7 +78,8 @@ class Bot:
         log.info("Reed auto-apply enabled (max %d/hour)", self.cfg.apply.max_per_hour)
 
     async def poll_source(self, source: Source, session: aiohttp.ClientSession) -> None:
-        interval = self.cfg.sources[source.name].poll_seconds
+        src_cfg = self.cfg.sources.get(source.name)
+        interval = src_cfg.poll_seconds if src_cfg else getattr(source, "poll_seconds", 60.0)
         log.info("Watching %s every %.0fs", source.name, interval)
         while True:
             started = time.monotonic()
@@ -113,6 +119,8 @@ class Bot:
 
         if job.source == "amazon_uk":
             note = "Amazon roles fill within minutes — apply NOW"
+        elif job.source.startswith("portal:"):
+            note = "Direct from the company's own careers site — apply early"
 
         if self.apply_enabled and self.applier and job.source == "reed":
             if self.store.applications_in_last(3600) >= self.cfg.apply.max_per_hour:
@@ -158,7 +166,11 @@ async def run_once(cfg: Config) -> None:
     async with aiohttp.ClientSession() as session:
         try:
             for source in sources:
-                jobs = await source.fetch(session)
+                try:
+                    jobs = await source.fetch(session)
+                except Exception as exc:
+                    print(f"\n=== {source.name}: FAILED — {exc}")
+                    continue
                 matches = [j for j in jobs if passes_filters(j, cfg.search)[0]]
                 print(f"\n=== {source.name}: {len(jobs)} results, {len(matches)} match filters ===")
                 for j in matches[:20]:

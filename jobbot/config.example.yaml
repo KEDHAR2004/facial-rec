@@ -30,6 +30,39 @@ sources:
                            # NOTE: country-wide (all UK); keywords/locations don't apply,
                            # only include_title/exclude_title filters do.
 
+# Company career portals watched DIRECTLY (no aggregator delay, no API key).
+# Each entry: the search-results URL to watch + a regex matching job-detail links.
+# Add any employer the same way — open their careers search page, look at a job
+# link's URL, and put its distinctive part in link_pattern.
+portals:
+  - name: mcdonalds
+    company: "McDonald's"
+    url: "https://people.mcdonalds.co.uk/job-search/?location=London"
+    link_pattern: "/job-search/restaurant-"
+    poll_seconds: 60
+  - name: primark
+    company: "Primark"
+    url: "https://careers.primark.com/en/location/england-jobs/8171/2635167-6269131/3"
+    link_pattern: "/en/job/"
+    poll_seconds: 60
+  - name: sainsburys
+    company: "Sainsbury's"
+    url: "https://sainsburys.jobs/jobs/?location=London"
+    link_pattern: "/jobs/description/"
+    poll_seconds: 60
+  - name: tesco
+    company: "Tesco"
+    url: "https://careers.tesco.com/en_GB/careers/SearchJobs/London"  # keyword after SearchJobs/
+    link_pattern: "/JobDetail/"
+    poll_seconds: 60
+  - name: costa
+    company: "Costa Coffee"
+    url: "https://costacareers.co.uk/job-search/"
+    link_pattern: "/vacancy/"
+    poll_seconds: 90
+    timeout_seconds: 60    # slow site; may not load from cloud/datacenter IPs,
+                           # works from a normal home connection
+
 apply:
   enabled: false           # true = auto-apply on Reed. false = notify-only (recommended to start)
   max_per_hour: 12         # safety cap on automatic applications

@@ -7,6 +7,9 @@ the moment they appear in the boards' feeds, and reacts instantly:
   and CV, submitted by a real browser (Playwright) seconds after detection.
 - **Amazon warehouse watcher** — polls Amazon's own hiring portal
   (jobsatamazon.co.uk) directly, every 15 s by default, no API key needed.
+- **Direct company-portal watchers** — watch ANY employer's own careers page
+  (McDonald's, Primark, Sainsbury's, Tesco, Costa… included; add more with a
+  3-line config entry). No aggregator delay, no API key.
 - **Instant Telegram alert** for every match (including boards it can't
   auto-apply to, e.g. Adzuna results that redirect to employer sites), so you
   can tap "Apply" from your phone immediately.
@@ -98,6 +101,35 @@ minutes. The `amazon_uk` source watches that portal directly:
   shift-selection step, so speed comes from the instant Telegram alert — tap
   the link, pick a shift, done. Log in to jobsatamazon.co.uk on your phone
   beforehand so the application is 3 taps when the alert lands.
+
+## Watching any company's own careers portal
+
+Big employers post on their own sites first (and some, like Amazon, *only*
+there). The `portals:` section of `config.yaml` lets you watch any of them
+directly — the bot loads the search page in a headless browser (so
+JavaScript-rendered lists and bot checks behave like a normal visitor),
+collects every job link on it, and alerts the moment a link it has never seen
+appears.
+
+Adding a new company takes three lines:
+
+1. Open the company's careers **search results** page in your browser, set
+   your location filter, and copy that URL into `url`.
+2. Click any job on it and look at the job page's address — put the
+   distinctive part of it into `link_pattern` (it's a regex). Example: Greggs
+   job pages look like `.../vacancies/12345`, so use `"/vacancies/"`.
+3. Give it a `name` and a `poll_seconds` (a poll is a full page load, so stay
+   ≥ 30 s to be a polite visitor).
+
+Notes:
+
+- List pages rarely say part-time/full-time, so portal jobs are never dropped
+  by the `part_time_only` filter — use `exclude_title` to cut obvious
+  full-time-only titles, and check the alert before applying.
+- Auto-apply doesn't run on portal jobs (every company's form is different);
+  you get the instant Telegram alert with the direct link instead.
+- If a portal changes its site layout, the worst case is the watcher logs
+  errors or matches nothing — fix the `url`/`link_pattern` and restart.
 
 ## Searching all of England
 
