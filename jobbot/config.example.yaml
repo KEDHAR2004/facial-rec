@@ -1,0 +1,35 @@
+# Copy to config.yaml and adjust. Secrets (API keys, passwords) go in .env — not here.
+
+search:
+  # One search is run per keyword per location. Empty list = all part-time jobs.
+  keywords:
+    - "barista"
+    - "retail assistant"
+    - "warehouse"
+  locations:
+    - "London"
+    # - "Manchester"      # add more cities, or use "England" on Adzuna for country-wide
+  distance_miles: 15
+  part_time_only: true
+  include_title: []        # e.g. ["assistant", "crew"] — keep only titles containing one of these
+  exclude_title:           # drop jobs whose title contains any of these
+    - "senior"
+    - "manager"
+  max_age_minutes: 0       # 0 = off. e.g. 30 = ignore anything posted more than 30 min ago
+
+sources:
+  reed:
+    enabled: true
+    poll_seconds: 30       # how often to re-query. Keep >= 20s to stay polite to the API.
+  adzuna:
+    enabled: true
+    poll_seconds: 30
+
+apply:
+  enabled: false           # true = auto-apply on Reed. false = notify-only (recommended to start)
+  max_per_hour: 12         # safety cap on automatic applications
+  headless: true           # set false to watch the browser apply
+  cover_letter_template: "cover_letter.txt"   # optional; {title} {company} {location} placeholders
+  storage_state: "data/reed_login.json"
+
+db_path: "data/jobbot.db"
