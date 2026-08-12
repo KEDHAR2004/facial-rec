@@ -16,3 +16,6 @@ class Source(ABC):
     async def fetch(self, session: aiohttp.ClientSession) -> list[Job]:
         """Return the current search results (the poller handles dedupe)."""
         raise NotImplementedError
+
+    async def aclose(self) -> None:
+        """Release any resources (browser sessions etc.). Default: nothing."""

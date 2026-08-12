@@ -5,6 +5,8 @@ the moment they appear in the boards' feeds, and reacts instantly:
 
 - **Auto-apply on Reed.co.uk** — one-click apply with your saved Reed profile
   and CV, submitted by a real browser (Playwright) seconds after detection.
+- **Amazon warehouse watcher** — polls Amazon's own hiring portal
+  (jobsatamazon.co.uk) directly, every 15 s by default, no API key needed.
 - **Instant Telegram alert** for every match (including boards it can't
   auto-apply to, e.g. Adzuna results that redirect to employer sites), so you
   can tap "Apply" from your phone immediately.
@@ -75,6 +77,27 @@ Jobs that use an external application form (redirects off Reed) can't be
 one-clicked; those fall back to a Telegram alert. Failures save a screenshot
 to `data/screenshots/` for debugging. `apply.max_per_hour` caps automatic
 submissions as a safety brake.
+
+## Amazon warehouse jobs (fill within minutes)
+
+Amazon hourly roles (warehouse, sortation centre, delivery station) are posted
+on Amazon's own portal — **not** on Reed/Adzuna — and are often gone within
+minutes. The `amazon_uk` source watches that portal directly:
+
+- The portal sits behind AWS WAF, so plain HTTP polling gets blocked. jobbot
+  keeps one headless browser page open (it passes the WAF check like any
+  visitor) and replays the site's own search query in-page every poll —
+  roughly a 200 ms call, so a 10–15 s interval is cheap and looks like a
+  normal visitor. It needs `playwright install chromium` (same dependency as
+  Reed auto-apply).
+- Most polls return an **empty list — that's normal**. Amazon UK hiring opens
+  in bursts; the bot's job is to be watching the second a burst starts.
+- Listings are country-wide (all of the UK). Location/keyword search settings
+  don't apply to this source; `include_title`/`exclude_title` filters still do.
+- **No auto-apply here**: applying needs your Amazon hiring account and a
+  shift-selection step, so speed comes from the instant Telegram alert — tap
+  the link, pick a shift, done. Log in to jobsatamazon.co.uk on your phone
+  beforehand so the application is 3 taps when the alert lands.
 
 ## Searching all of England
 

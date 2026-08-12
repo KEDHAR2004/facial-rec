@@ -59,7 +59,7 @@ def load_config(path: str | Path) -> Config:
     apply_cfg = ApplyConfig(**(data.get("apply") or {}))
     sources = {
         name: SourceConfig(**(cfg or {}))
-        for name, cfg in (data.get("sources") or {"reed": {}, "adzuna": {}}).items()
+        for name, cfg in (data.get("sources") or {"reed": {}, "adzuna": {}, "amazon_uk": {}}).items()
     }
 
     cfg = Config(

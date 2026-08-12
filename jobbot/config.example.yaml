@@ -24,6 +24,11 @@ sources:
   adzuna:
     enabled: true
     poll_seconds: 30
+  amazon_uk:               # jobsatamazon.co.uk — Amazon warehouse/sortation roles.
+    enabled: true          # No API key needed; uses a headless browser session.
+    poll_seconds: 15       # These roles fill within minutes, so poll faster.
+                           # NOTE: country-wide (all UK); keywords/locations don't apply,
+                           # only include_title/exclude_title filters do.
 
 apply:
   enabled: false           # true = auto-apply on Reed. false = notify-only (recommended to start)

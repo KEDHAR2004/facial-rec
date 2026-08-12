@@ -12,7 +12,7 @@ from .config import Config, load_config
 from .filters import passes_filters
 from .models import Job
 from .notify import TelegramNotifier
-from .sources import AdzunaSource, ReedSource, Source
+from .sources import AdzunaSource, AmazonUkSource, ReedSource, Source
 from .store import Store
 
 log = logging.getLogger("jobbot")
@@ -41,6 +41,14 @@ class Bot:
                 sources.append(AdzunaSource(self.cfg.adzuna_app_id, self.cfg.adzuna_app_key, self.cfg.search))
             else:
                 log.warning("Adzuna enabled but ADZUNA_APP_ID/ADZUNA_APP_KEY not set — skipping")
+        amazon_cfg = self.cfg.sources.get("amazon_uk")
+        if amazon_cfg and amazon_cfg.enabled:
+            try:
+                import playwright  # noqa: F401
+                sources.append(AmazonUkSource(self.cfg.search, headless=self.cfg.apply.headless))
+            except ImportError:
+                log.warning("amazon_uk enabled but playwright is not installed "
+                            "(pip install playwright && playwright install chromium) — skipping")
         return sources
 
     async def start_applier(self) -> None:
@@ -103,6 +111,9 @@ class Bot:
         applied = False
         note = ""
 
+        if job.source == "amazon_uk":
+            note = "Amazon roles fill within minutes — apply NOW"
+
         if self.apply_enabled and self.applier and job.source == "reed":
             if self.store.applications_in_last(3600) >= self.cfg.apply.max_per_hour:
                 note = "rate limit reached — apply manually"
@@ -132,6 +143,8 @@ class Bot:
             async with aiohttp.ClientSession() as session:
                 await asyncio.gather(*(self.poll_source(s, session) for s in sources))
         finally:
+            for s in sources:
+                await s.aclose()
             if self.applier:
                 await self.applier.close()
 
@@ -143,13 +156,17 @@ async def run_once(cfg: Config) -> None:
     if not sources:
         raise SystemExit("No sources configured — set API keys in .env (see .env.example)")
     async with aiohttp.ClientSession() as session:
-        for source in sources:
-            jobs = await source.fetch(session)
-            matches = [j for j in jobs if passes_filters(j, cfg.search)[0]]
-            print(f"\n=== {source.name}: {len(jobs)} results, {len(matches)} match filters ===")
-            for j in matches[:20]:
-                when = j.posted_at.strftime("%Y-%m-%d %H:%M") if j.posted_at else "?"
-                print(f"  [{when}] {j.one_line()}\n           {j.url}")
+        try:
+            for source in sources:
+                jobs = await source.fetch(session)
+                matches = [j for j in jobs if passes_filters(j, cfg.search)[0]]
+                print(f"\n=== {source.name}: {len(jobs)} results, {len(matches)} match filters ===")
+                for j in matches[:20]:
+                    when = j.posted_at.strftime("%Y-%m-%d %H:%M") if j.posted_at else "?"
+                    print(f"  [{when}] {j.one_line()}\n           {j.url}")
+        finally:
+            for source in sources:
+                await source.aclose()
 
 
 def main() -> None:
