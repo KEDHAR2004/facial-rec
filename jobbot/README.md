@@ -10,6 +10,12 @@ the moment they appear in the boards' feeds, and reacts instantly:
 - **Direct company-portal watchers** — watch ANY employer's own careers page
   (McDonald's, Primark, Sainsbury's, Tesco, Costa… included; add more with a
   3-line config entry). No aggregator delay, no API key.
+- **Telegram group watcher** — if you're in a Telegram group that posts job
+  links (e.g. Amazon warehouse alert groups), the bot reads new messages the
+  second they land (push, ~1-2 s) and fires on any job link in them.
+- **Amazon auto-apply (experimental)** — with a one-time login, the bot can
+  click through the jobsatamazon.co.uk apply flow itself the moment a role
+  appears, instead of just alerting you.
 - **Instant Telegram alert** for every match (including boards it can't
   auto-apply to, e.g. Adzuna results that redirect to employer sites), so you
   can tap "Apply" from your phone immediately.
@@ -97,10 +103,59 @@ minutes. The `amazon_uk` source watches that portal directly:
   in bursts; the bot's job is to be watching the second a burst starts.
 - Listings are country-wide (all of the UK). Location/keyword search settings
   don't apply to this source; `include_title`/`exclude_title` filters still do.
-- **No auto-apply here**: applying needs your Amazon hiring account and a
-  shift-selection step, so speed comes from the instant Telegram alert — tap
-  the link, pick a shift, done. Log in to jobsatamazon.co.uk on your phone
-  beforehand so the application is 3 taps when the alert lands.
+- Alerts fire instantly; with the experimental [Amazon auto-apply](#amazon-auto-apply-experimental)
+  enabled, the bot even submits the application itself. Either way, log in to
+  jobsatamazon.co.uk beforehand so the final steps are instant.
+- Getting listings from a Telegram group instead? See
+  [Watching a Telegram job-alert group](#watching-a-telegram-job-alert-group-fastest-trigger-of-all)
+  — it's an even faster trigger and feeds the same apply pipeline.
+
+## Watching a Telegram job-alert group (fastest trigger of all)
+
+If listings reach you through a Telegram group (common for Amazon warehouse
+roles — and they're gone in a minute), let the bot read the group directly.
+Unlike every polling source, this is **push**: the bot reacts ~1–2 seconds
+after the message is posted.
+
+One-time setup:
+
+1. Go to <https://my.telegram.org> → *API development tools* → create an app,
+   and put `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` in `.env`. (These identify
+   *your* Telegram account — group reading can't be done with a BotFather
+   bot, since bots only see groups they're added to as members.)
+2. Run `python -m jobbot telegram-login` — enter your phone number and the
+   code Telegram sends you. It then prints all your chats with their ids.
+3. Put the group name(s) or id(s) in `telegram_watch.chats` in `config.yaml`
+   and set `enabled: true`. An empty `chats` list watches everything.
+
+Any `jobsatamazon.co.uk` link in a message becomes an Amazon job (deduped
+against the portal watcher, so you never double-apply); other job links get
+alerted as-is. Group messages skip the keyword filters — the group already
+curated them, and speed matters more.
+
+## Amazon auto-apply (experimental)
+
+For listings that vanish in a minute, an alert can still be too slow. With
+this enabled the bot applies by itself:
+
+1. `python -m jobbot amazon-login` — a browser window opens; log in to your
+   Amazon jobs account (they send a PIN — that's why this one step is
+   manual), then close the window. The logged-in session is saved to
+   `data/amazon_profile` and reused from then on. **Complete your candidate
+   profile on the site first** so applications don't stall on missing info.
+2. Set `apply.amazon_enabled: true` in `config.yaml` (start with
+   `headless: false` so you can watch it), and run `python -m jobbot`.
+3. When a new Amazon job arrives (from the portal watcher or a Telegram
+   group), the bot opens it in your logged-in profile and clicks through
+   shift selection → apply → confirmation.
+
+Honest caveats: Amazon changes this flow often and sometimes adds checks a
+bot can't pass, so treat it as a head start rather than a guarantee — every
+attempt is screenshotted to `data/screenshots/`, the Telegram alert is always
+sent too, and if the click-through stalls you finish the last step by hand on
+a page that's already loaded and logged in. Automating applications is also
+against most sites' terms of service — including Amazon's — so use it at your
+own discretion and keep `max_per_hour` sensible.
 
 ## Watching any company's own careers portal
 

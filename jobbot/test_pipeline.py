@@ -1,5 +1,6 @@
 """Offline smoke test: mocks a job board and checks baseline, dedupe,
-filtering and dispatch. Run: .venv/bin/python test_pipeline.py"""
+filtering, dispatch, and Telegram message parsing.
+Run: .venv/bin/python test_pipeline.py"""
 import asyncio
 import logging
 
@@ -7,8 +8,30 @@ from jobbot.config import ApplyConfig, Config, SearchConfig, SourceConfig
 from jobbot.main import Bot
 from jobbot.models import Job
 from jobbot.sources.base import Source
+from jobbot.telegram_watch import jobs_from_message
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(message)s")
+
+
+def test_telegram_parsing():
+    # Amazon link in text -> amazon_uk job keyed by jobId (dedupes with the portal poller)
+    msg = ("🔥 Amazon Warehouse Operative — Tilbury £13.50/hr\n"
+           "Apply: https://www.jobsatamazon.co.uk/app#/jobDetail?jobId=JOB-GB-123&locale=en-GB")
+    jobs = jobs_from_message(msg, [], "@amazonalerts")
+    assert len(jobs) == 1, jobs
+    assert jobs[0].source == "amazon_uk" and jobs[0].source_id == "JOB-GB-123", jobs[0]
+    assert jobs[0].uid == "amazon_uk:JOB-GB-123"
+    assert "Warehouse Operative" in jobs[0].title
+
+    # Hidden/button link + non-amazon link; url list deduped with text urls
+    jobs = jobs_from_message(
+        "New shifts!", ["https://www.jobsatamazon.co.uk/app#/jobDetail?jobId=X9&locale=en-GB",
+                        "https://example.org/some-job"], "chat")
+    assert {j.source for j in jobs} == {"amazon_uk", "telegram"}, jobs
+
+    # No links -> no jobs (ignore chatter)
+    assert jobs_from_message("good morning all", [], "chat") == []
+    print("TELEGRAM_PARSING_OK")
 
 
 class FakeBoard(Source):
@@ -56,7 +79,18 @@ async def main():
     await asyncio.sleep(0.05)  # let the create_task dispatch run
     assert handled == ["fake:3"], handled
 
-    print("\nPIPELINE_OK — baseline, dedupe and filters all behave correctly")
+    # Push dispatch (telegram path): dedupe against poller, no baseline needed
+    pushed: list[str] = []
+    bot.handle_new_job = lambda j, s: pushed.append(j.uid) or asyncio.sleep(0)
+    tg_jobs = jobs_from_message(
+        "Warehouse shift!", ["https://www.jobsatamazon.co.uk/app#/jobDetail?jobId=NEW1"], "grp")
+    await bot.dispatch_pushed(tg_jobs[0], session=None)
+    await bot.dispatch_pushed(tg_jobs[0], session=None)  # duplicate — ignored
+    await asyncio.sleep(0.05)
+    assert pushed == ["amazon_uk:NEW1"], pushed
+
+    print("\nPIPELINE_OK — baseline, dedupe, filters and push dispatch all behave correctly")
 
 
+test_telegram_parsing()
 asyncio.run(main())
