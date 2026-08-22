@@ -3,13 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FaceSense — Recognition &amp; Expression Analysis</title>
+  <title>FaceSense — Live Face Recognition &amp; Mood Analysis</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
 </head>
 <body>
+  <div class="bg-glow"></div>
+
   <header>
-    <h1>Face<span>Sense</span></h1>
-    <p>Real-time face recognition &amp; expression analysis</p>
+    <div class="brand">
+      <div class="logo">◉</div>
+      <h1>Face<span>Sense</span></h1>
+    </div>
+    <p class="tagline">Real-time face recognition &amp; mood analysis — right in your browser</p>
+    <div class="pills">
+      <span class="pill">Live camera</span>
+      <span class="pill">8 moods</span>
+      <span class="pill">Person 1, 2, … auto-naming</span>
+      <span class="pill">100% local AI</span>
+    </div>
   </header>
 
   <main>
@@ -23,12 +34,17 @@
         <div class="video-wrap">
           <video id="video" class="mirrored" autoplay playsinline muted></video>
           <canvas id="overlay"></canvas>
+          <div id="camera-placeholder">
+            <div class="cam-icon">📷</div>
+            <p>Click <strong>Start camera</strong> and allow camera access.<br />
+               Your video never leaves this app.</p>
+          </div>
         </div>
         <div class="controls">
           <button id="btn-start" class="primary">Start camera</button>
-          <button id="btn-stop" disabled>Stop</button>
+          <button id="btn-stop">Stop</button>
           <input id="enroll-name" type="text" placeholder="Name (blank = Person N)" />
-          <button id="btn-enroll" disabled>Enroll this face</button>
+          <button id="btn-enroll">Enroll this face</button>
           <label class="toggle">
             <input type="checkbox" id="auto-enroll" />
             Auto-enroll unknown faces
@@ -37,7 +53,11 @@
       </div>
 
       <div id="upload-view" hidden>
-        <input type="file" id="file-input" accept="image/*" />
+        <label class="file-drop" for="file-input">
+          <span class="cam-icon">🖼️</span>
+          <span id="file-label">Choose a photo (or drop it here)</span>
+        </label>
+        <input type="file" id="file-input" accept="image/*" hidden />
         <div class="upload-actions">
           <button id="btn-analyze-file" class="primary" disabled>Analyze</button>
           <input id="enroll-name-file" type="text" placeholder="Name (blank = Person N)" />
@@ -51,13 +71,18 @@
 
     <aside class="panel side-panel">
       <h2>Detected faces</h2>
-      <div id="faces"></div>
+      <div id="faces"><p class="empty">Start the camera to see live results.</p></div>
 
       <h2>Enrolled people</h2>
       <ul id="persons"></ul>
       <button id="btn-reset" class="danger">Reset database</button>
     </aside>
   </main>
+
+  <footer>
+    <p>Runs entirely on this server — no cloud AI services. Faces are stored as
+       anonymous number vectors, never as images.</p>
+  </footer>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

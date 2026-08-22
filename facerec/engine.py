@@ -117,29 +117,62 @@ class FaceEngine:
         self.auto_enroll = auto_enroll
         self._db_path = Path(db_path)
         self._lock = threading.Lock()
+        # Serializes OpenCV net inference, which is not thread-safe.
+        self._infer_lock = threading.Lock()
         # name -> list of embeddings (each a 128-d list of floats)
         self._db: dict[str, list[list[float]]] = {}
+        self._db_stamp: tuple[int, int] = (0, 0)  # (mtime_ns, size)
         self._load_db()
 
     # ------------------------------------------------------------------
     # Person database
+    #
+    # The database lives in a JSON file so that multiple server processes
+    # (e.g. gunicorn workers) share one source of truth: every write is
+    # atomic, and readers reload whenever the file changes on disk.
     # ------------------------------------------------------------------
+    def _file_stamp(self) -> tuple[int, int]:
+        st = self._db_path.stat()
+        return (st.st_mtime_ns, st.st_size)
+
     def _load_db(self) -> None:
         if self._db_path.exists():
             self._db = json.loads(self._db_path.read_text())
+            self._db_stamp = self._file_stamp()
+
+    def _maybe_reload_db(self) -> None:
+        """Pick up changes written by other processes. Lock held by caller."""
+        try:
+            stamp = self._file_stamp()
+        except OSError:
+            return
+        if stamp != self._db_stamp:
+            try:
+                self._db = json.loads(self._db_path.read_text())
+                self._db_stamp = stamp
+            except (OSError, json.JSONDecodeError):
+                pass  # concurrent write in progress; next call will retry
 
     def _save_db(self) -> None:
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._db_path.write_text(json.dumps(self._db))
+        tmp = self._db_path.with_name(self._db_path.name + ".tmp")
+        tmp.write_text(json.dumps(self._db))
+        tmp.replace(self._db_path)
+        try:
+            self._db_stamp = self._file_stamp()
+        except OSError:
+            pass
 
     @property
     def persons(self) -> dict[str, int]:
         """Enrolled persons mapped to their number of face samples."""
         with self._lock:
+            self._maybe_reload_db()
             return {name: len(embs) for name, embs in self._db.items()}
 
     def remove_person(self, name: str) -> bool:
         with self._lock:
+            self._maybe_reload_db()
             if name not in self._db:
                 return False
             del self._db[name]
@@ -169,15 +202,14 @@ class FaceEngine:
 
     def _match_embedding(self, embedding: np.ndarray) -> tuple[str, float]:
         """Return (best matching person, cosine similarity). Lock held by caller."""
+        query = embedding.flatten().astype(np.float32)
+        qnorm = np.linalg.norm(query) or 1.0
         best_name, best_sim = "Unknown", 0.0
         for name, embeddings in self._db.items():
             for stored in embeddings:
+                vec = np.asarray(stored, dtype=np.float32)
                 sim = float(
-                    self._recognizer.match(
-                        embedding,
-                        np.asarray(stored, dtype=np.float32).reshape(1, -1),
-                        cv2.FaceRecognizerSF_FR_COSINE,
-                    )
+                    np.dot(query, vec) / (qnorm * (np.linalg.norm(vec) or 1.0))
                 )
                 if sim > best_sim:
                     best_name, best_sim = name, sim
@@ -189,14 +221,16 @@ class FaceEngine:
     # Per-face helpers
     # ------------------------------------------------------------------
     def _detect(self, image: np.ndarray) -> np.ndarray:
-        h, w = image.shape[:2]
-        self._detector.setInputSize((w, h))
-        _, faces = self._detector.detect(image)
+        with self._infer_lock:
+            h, w = image.shape[:2]
+            self._detector.setInputSize((w, h))
+            _, faces = self._detector.detect(image)
         return faces if faces is not None else np.empty((0, 15), dtype=np.float32)
 
     def _embed(self, image: np.ndarray, face_row: np.ndarray) -> np.ndarray:
-        aligned = self._recognizer.alignCrop(image, face_row)
-        return self._recognizer.feature(aligned)
+        with self._infer_lock:
+            aligned = self._recognizer.alignCrop(image, face_row)
+            return self._recognizer.feature(aligned)
 
     @staticmethod
     def _crop(
@@ -209,14 +243,21 @@ class FaceEngine:
         return image[y0:y1, x0:x1]
 
     @staticmethod
-    def _softmax(logits: np.ndarray) -> np.ndarray:
-        exp = np.exp(logits - logits.max())
+    def _softmax(logits: np.ndarray, temperature: float = 1.0) -> np.ndarray:
+        scaled = logits / temperature
+        exp = np.exp(scaled - scaled.max())
         return exp / exp.sum()
 
     def _classify_expression(
         self, image: np.ndarray, box: tuple[int, int, int, int]
     ) -> tuple[str, dict[str, float]]:
-        """Ensemble of HSEmotion (AffectNet) and FER+ probabilities."""
+        """Ensemble of HSEmotion (AffectNet) and FER+ probabilities.
+
+        A softmax temperature > 1 softens the distributions so secondary
+        expressions keep visible (non-zero) percentages; the top prediction
+        of each model is unaffected.
+        """
+        temperature = 2.0
         crop = self._crop(image, box, 0.05)
         if crop.size == 0:
             return "unknown", {}
@@ -225,19 +266,20 @@ class FaceEngine:
         rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
         rgb = cv2.resize(rgb, (224, 224), interpolation=cv2.INTER_AREA)
         blob = (rgb.astype(np.float32) / 255.0 - _IMAGENET_MEAN) / _IMAGENET_STD
-        self._emotion_net2.setInput(blob.transpose(2, 0, 1)[None])
-        enet_probs = dict(
-            zip(_ENET_LABELS, self._softmax(self._emotion_net2.forward().flatten()))
-        )
 
         # FER+: 64x64 grayscale on a slightly looser crop.
         fer_crop = self._crop(image, box, 0.1)
         gray = cv2.cvtColor(fer_crop, cv2.COLOR_BGR2GRAY)
         gray = cv2.resize(gray, (64, 64), interpolation=cv2.INTER_AREA)
-        self._emotion_net.setInput(gray.astype(np.float32).reshape(1, 1, 64, 64))
-        fer_probs = dict(
-            zip(EMOTIONS, self._softmax(self._emotion_net.forward().flatten()))
-        )
+
+        with self._infer_lock:
+            self._emotion_net2.setInput(blob.transpose(2, 0, 1)[None])
+            enet_logits = self._emotion_net2.forward().flatten()
+            self._emotion_net.setInput(gray.astype(np.float32).reshape(1, 1, 64, 64))
+            fer_logits = self._emotion_net.forward().flatten()
+
+        enet_probs = dict(zip(_ENET_LABELS, self._softmax(enet_logits, temperature)))
+        fer_probs = dict(zip(EMOTIONS, self._softmax(fer_logits, temperature)))
 
         scores = {
             label: float(
@@ -265,6 +307,7 @@ class FaceEngine:
             embedding = self._embed(image, face_row)
 
             with self._lock:
+                self._maybe_reload_db()
                 name, similarity = self._match_embedding(embedding)
                 if name == "Unknown" and self.auto_enroll:
                     name = self._enroll_embedding(embedding, None)
@@ -297,6 +340,7 @@ class FaceEngine:
         largest = max(faces, key=lambda f: float(f[2]) * float(f[3]))
         embedding = self._embed(image, largest)
         with self._lock:
+            self._maybe_reload_db()
             return self._enroll_embedding(embedding, name)
 
     @staticmethod

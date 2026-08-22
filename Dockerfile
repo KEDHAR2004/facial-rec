@@ -24,4 +24,6 @@ RUN mkdir -p data && chmod 777 data
 ENV PORT=7860
 EXPOSE 7860
 
-CMD ["sh", "-c", "gunicorn --workers 2 --timeout 120 --bind 0.0.0.0:${PORT} app:app"]
+# Single worker with threads: the engine serializes model inference
+# internally, and one process avoids duplicating ~300 MB of models.
+CMD ["sh", "-c", "gunicorn --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:${PORT} app:app"]
