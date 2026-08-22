@@ -150,6 +150,23 @@ official sources by `scripts/download_models.py`:
 | FER+ | Expression recognition | [ONNX Model Zoo](https://github.com/onnx/models/tree/main/validated/vision/body_analysis/emotion_ferplus) | MIT |
 | HSEmotion (EfficientNet-B0) | Expression recognition | [av-savchenko/face-emotion-recognition](https://github.com/av-savchenko/face-emotion-recognition) | Apache-2.0 |
 
+## Troubleshooting
+
+- **"Port 5000 is in use" on macOS** — Apple's AirPlay Receiver occupies
+  port 5000. Run `python app.py --port 5001` and open
+  <http://localhost:5001>.
+- **Camera button does nothing / camera blocked** — allow camera access in
+  the browser (icon left of the address bar → Site settings → Camera) and in
+  the OS (macOS: System Settings → Privacy & Security → Camera → enable your
+  browser, then restart it). Close other apps using the camera.
+- **Opening from another device** — browsers require HTTPS for the camera
+  anywhere except `localhost`. Run `python app.py --ssl` and open the
+  `https://` URL, or use the hosted demo.
+- **Black video after an update** — hard-refresh once (`Cmd+Shift+R` /
+  `Ctrl+Shift+R`) to drop stale cached files.
+- **`python: command not found`** — use `python3` (and `pip3`), or activate
+  the virtual environment first.
+
 ## Responsible use
 
 Facial recognition involves biometric data. Only enroll and analyze people

@@ -6,6 +6,7 @@ const ctx = overlay.getContext("2d");
 const statusEl = document.getElementById("status");
 const facesEl = document.getElementById("faces");
 const personsEl = document.getElementById("persons");
+const placeholder = document.getElementById("camera-placeholder");
 
 const btnStart = document.getElementById("btn-start");
 const btnStop = document.getElementById("btn-stop");
@@ -18,10 +19,22 @@ const tabUpload = document.getElementById("tab-upload");
 const liveView = document.getElementById("live-view");
 const uploadView = document.getElementById("upload-view");
 const fileInput = document.getElementById("file-input");
+const fileLabel = document.getElementById("file-label");
 const btnAnalyzeFile = document.getElementById("btn-analyze-file");
 const btnEnrollFile = document.getElementById("btn-enroll-file");
 const enrollNameFile = document.getElementById("enroll-name-file");
 const resultImage = document.getElementById("result-image");
+
+const EMOTION_COLORS = {
+  happiness: "#3ddc84",
+  neutral: "#8f9bb8",
+  surprise: "#ffc24b",
+  sadness: "#5ba8ff",
+  anger: "#ff5d73",
+  disgust: "#9bd356",
+  fear: "#c084fc",
+  contempt: "#ff9d5c",
+};
 
 let stream = null;
 let loopTimer = null;
@@ -30,9 +43,17 @@ let failStreak = 0;
 
 const grabCanvas = document.createElement("canvas");
 
+btnStop.disabled = true;
+btnEnroll.disabled = true;
+
 function setStatus(msg, isError = false) {
   statusEl.textContent = msg;
   statusEl.style.color = isError ? "#ff5d73" : "";
+}
+
+function fmtPct(p) {
+  const v = p * 100;
+  return (v >= 10 ? Math.round(v) : v.toFixed(1)) + "%";
 }
 
 /* ---------------- tabs ---------------- */
@@ -56,6 +77,7 @@ btnStart.onclick = async () => {
     );
     return;
   }
+  setStatus("Requesting camera…");
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       video: { width: { ideal: 960 }, height: { ideal: 540 } },
@@ -65,53 +87,132 @@ btnStart.onclick = async () => {
     return;
   }
   video.srcObject = stream;
-  await video.play();
-  overlay.width = video.videoWidth;
-  overlay.height = video.videoHeight;
+  try {
+    await video.play();
+  } catch (_) {
+    /* some browsers reject play() spuriously; the stream still renders */
+  }
+  // Wait until real frames exist — starting earlier causes a black
+  // 0x0 canvas and failed analysis on slower cameras.
+  if (!video.videoWidth) {
+    await new Promise((resolve) => {
+      const t = setTimeout(resolve, 4000);
+      video.addEventListener(
+        "loadedmetadata",
+        () => { clearTimeout(t); resolve(); },
+        { once: true }
+      );
+    });
+  }
+  if (!video.videoWidth) {
+    setStatus(
+      "The camera started but is not sending frames. Close other apps " +
+        "using the camera and try again.",
+      true
+    );
+    stopCamera();
+    return;
+  }
+  syncOverlaySize();
+  placeholder.hidden = true;
   btnStart.disabled = true;
   btnStop.disabled = false;
   btnEnroll.disabled = false;
+  failStreak = 0;
   setStatus("Analyzing…");
   loopTimer = setInterval(analyzeFrame, 450);
 };
 
-btnStop.onclick = () => {
+function stopCamera() {
   clearInterval(loopTimer);
   loopTimer = null;
   if (stream) stream.getTracks().forEach((t) => t.stop());
   stream = null;
   video.srcObject = null;
   ctx.clearRect(0, 0, overlay.width, overlay.height);
+  placeholder.hidden = false;
   btnStart.disabled = false;
   btnStop.disabled = true;
   btnEnroll.disabled = true;
+  smoothTracks = [];
+}
+
+btnStop.onclick = () => {
+  stopCamera();
   setStatus("Stopped.");
 };
 
+function syncOverlaySize() {
+  if (
+    video.videoWidth &&
+    (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight)
+  ) {
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+  }
+}
+
 function grabFrame() {
+  if (!video.videoWidth) return null;
   grabCanvas.width = video.videoWidth;
   grabCanvas.height = video.videoHeight;
   grabCanvas.getContext("2d").drawImage(video, 0, 0);
   return grabCanvas.toDataURL("image/jpeg", 0.8);
 }
 
+/* ---------------- expression smoothing ----------------
+   Blend each face's scores with its previous frame (matched by box
+   center) so the mood readout is steady instead of flickering. */
+let smoothTracks = [];
+
+function smoothFaces(faces) {
+  const next = [];
+  for (const f of faces) {
+    const [x, y, w, h] = f.box;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    let prev = null;
+    let bestD = Infinity;
+    for (const t of smoothTracks) {
+      const d = (t.cx - cx) ** 2 + (t.cy - cy) ** 2;
+      if (d < bestD) { bestD = d; prev = t; }
+    }
+    let scores = { ...f.expression_scores };
+    if (prev && bestD < w * w) {
+      for (const k in scores) {
+        scores[k] = 0.45 * scores[k] + 0.55 * (prev.scores[k] || 0);
+      }
+    }
+    next.push({ cx, cy, scores });
+    f.expression_scores = scores;
+    f.expression = Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
+  }
+  smoothTracks = next;
+  return faces;
+}
+
+/* ---------------- live analysis loop ---------------- */
 async function analyzeFrame() {
   if (busy || !stream) return;
+  const frame = grabFrame();
+  if (!frame) return;
   busy = true;
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: grabFrame() }),
+      body: JSON.stringify({ image: frame }),
     });
     if (!res.ok) throw new Error(`server responded ${res.status}`);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     failStreak = 0;
-    drawOverlay(data.faces);
-    renderFaces(data.faces);
+    syncOverlaySize();
+    const faces = smoothFaces(data.faces);
+    drawOverlay(faces);
+    renderFaces(faces);
     renderPersons(data.persons);
-    setStatus(`${data.faces.length} face(s) detected`);
+    setStatus(`${faces.length} face(s) detected`);
   } catch (e) {
     // Hosted servers can briefly return errors while waking/restarting;
     // keep retrying quietly and only surface persistent failures.
@@ -133,7 +234,7 @@ const MIRROR = true;
 function drawOverlay(faces) {
   ctx.clearRect(0, 0, overlay.width, overlay.height);
   ctx.lineWidth = 2;
-  ctx.font = "15px 'Segoe UI', sans-serif";
+  ctx.font = "15px 'Inter', 'Segoe UI', sans-serif";
   const W = overlay.width;
   for (const f of faces) {
     let [x, y, w, h] = f.box;
@@ -144,12 +245,12 @@ function drawOverlay(faces) {
     ctx.strokeRect(x, y, w, h);
 
     const conf = f.expression_scores[f.expression] || 0;
-    const label = `${f.name} | ${f.expression} ${(conf * 100).toFixed(0)}%`;
+    const label = `${f.name} | ${f.expression} ${fmtPct(conf)}`;
     const tw = ctx.measureText(label).width + 10;
     const ty = y > 24 ? y - 24 : y + h + 4;
     ctx.fillStyle = color;
     ctx.fillRect(x, ty, tw, 20);
-    ctx.fillStyle = "#0f1220";
+    ctx.fillStyle = "#0b0e1a";
     ctx.fillText(label, x + 5, ty + 15);
 
     ctx.fillStyle = "#ffc800";
@@ -176,15 +277,16 @@ function renderFaces(faces) {
           ([label, p]) => `
             <div class="bar-row">
               <span class="label">${label}</span>
-              <div class="bar"><div style="width:${(p * 100).toFixed(1)}%"></div></div>
-              <span>${(p * 100).toFixed(0)}%</span>
+              <div class="bar"><div style="width:${Math.max(p * 100, 1.5).toFixed(1)}%;
+                background:${EMOTION_COLORS[label] || "#6d8dff"}"></div></div>
+              <span class="pct">${fmtPct(p)}</span>
             </div>`
         )
         .join("");
       return `
         <div class="face-card">
           <span class="who ${known ? "known" : "unknown"}">${f.name}</span>
-          ${known ? `<span class="expr"> · match ${(f.similarity * 100).toFixed(0)}%</span>` : ""}
+          ${known ? `<span class="expr"> · match ${fmtPct(f.similarity)}</span>` : ""}
           <div class="expr">${f.expression}</div>
           ${bars}
         </div>`;
@@ -219,10 +321,12 @@ function renderPersons(persons) {
 /* ---------------- enrollment ---------------- */
 btnEnroll.onclick = async () => {
   if (!stream) return;
+  const frame = grabFrame();
+  if (!frame) return;
   const res = await fetch("/api/enroll", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image: grabFrame(), name: enrollName.value }),
+    body: JSON.stringify({ image: frame, name: enrollName.value }),
   });
   const data = await res.json();
   if (data.error) return setStatus(data.error, true);
@@ -251,6 +355,7 @@ fileInput.onchange = () => {
   const has = fileInput.files.length > 0;
   btnAnalyzeFile.disabled = !has;
   btnEnrollFile.disabled = !has;
+  if (has) fileLabel.textContent = fileInput.files[0].name;
 };
 
 function fileToDataURL(file) {
@@ -301,4 +406,5 @@ fetch("/api/persons")
   .then((d) => {
     renderPersons(d.persons);
     autoEnroll.checked = !!d.auto_enroll;
-  });
+  })
+  .catch(() => {});
