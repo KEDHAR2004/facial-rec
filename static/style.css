@@ -121,6 +121,7 @@ video.mirrored { transform: scaleX(-1); }
   pointer-events: none;
   background: transparent;
 }
+#camera-placeholder[hidden] { display: none; }
 #camera-placeholder {
   position: absolute;
   inset: 0;
